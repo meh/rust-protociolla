@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{fmt, marker::PhantomData};
 use bytes::{Bytes, BytesMut};
 use serde::{ser::Serialize, de::DeserializeOwned};
 use crate::Format;
@@ -66,12 +66,18 @@ impl Header {
 		self.length == 0xffff
 	}
 }
-#[derive(Clone, Debug)]
-pub struct Packet<F: Format = ()> {
+#[derive(Clone)]
+pub struct Packet<F = ()> {
 	cookie: Cookie,
 	bytes: Bytes,
 
 	_marker: PhantomData<F>,
+}
+
+impl<F> fmt::Debug for Packet<F> {
+	fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+		write!(f, "Packet {{ cookie: {:?}, bytes: {:?} }}", self.cookie, self.bytes)
+	}
 }
 
 impl<F: Format> Packet<F> {

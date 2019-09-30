@@ -11,3 +11,17 @@ pub use crate::packet::{Header, Cookie, Packet};
 
 mod codec;
 pub use crate::codec::{Codec, Packets, Streams};
+
+use std::marker::Unpin;
+use tokio::{codec::Framed, io::{AsyncRead, AsyncWrite}};
+
+pub fn mi<F, S>(socket: S) -> Reframed<Streams<F>>
+  where F: Format,
+        S: AsyncRead + AsyncWrite + Unpin + Send + 'static
+{
+  let packets = Framed::new(socket, Codec);
+  let packets = Reframed::<Packets<F>>::new(packets);
+  let packets = Reframed::<Streams<F>>::new(packets);
+
+  packets
+}

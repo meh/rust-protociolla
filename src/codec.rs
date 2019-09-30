@@ -60,7 +60,7 @@ pub struct Packets<F = ()> {
 	_marker: PhantomData<F>
 }
 
-impl<F: Format + ::std::fmt::Debug> Reframe for Packets<F> {
+impl<F: Format> Reframe for Packets<F> {
 	type Input = (Header, Bytes);
 	type Stream = Packet<F>;
 	type Sink = Packet<F>;
@@ -145,7 +145,7 @@ pub struct Streams<F = ()> {
 	_marker: PhantomData<F>,
 }
 
-impl<F: Format + ::std::fmt::Debug + Send> Reframe for Streams<F> {
+impl<F: Format> Reframe for Streams<F> {
 	type Input = Packet<F>;
 	type Stream = Pin<Box<dyn Stream<Item = Packet<F>> + Send>>;
 	type Sink = Packet<F>;

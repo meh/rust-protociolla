@@ -15,9 +15,7 @@ pub struct Foo {
 }
 
 async fn accept(stream: TcpStream, _addr: SocketAddr) -> Result<(), Box<dyn Error>> {
-	let packets = Framed::new(stream, protociolla::Codec);
-	let packets = Reframed::<protociolla::Packets<format::MessagePack>>::new(packets);
-	let mut packets = Reframed::<protociolla::Streams<_>>::new(packets);
+	let mut packets = protociolla::mi::<format::MessagePack, _>(stream);
 
 	while let Some(Ok(mut stream)) = packets.next().await {
 		tokio::spawn(async move {
