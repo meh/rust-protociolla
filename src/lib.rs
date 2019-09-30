@@ -9,5 +9,5 @@ pub use crate::packet::{Header, Cookie, Packet};
 pub mod reframe;
 pub use crate::reframe::{Reframe, Reframed};
 
-mod format;
+pub mod format;
 pub use crate::format::Format;
