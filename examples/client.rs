@@ -18,7 +18,8 @@ pub struct Foo {
 async fn main() -> Result<(), Box<dyn Error>> {
 	let stream = TcpStream::connect(&env::args().nth(1).expect("no host")).await?;
 	let packets = Framed::new(stream, protociolla::Codec);
-	let mut packets = Reframed::<protociolla::Packets<format::MessagePack>>::new(packets);
+	let packets = Reframed::<protociolla::Packets<format::MessagePack>>::new(packets);
+	let mut packets = Reframed::<protociolla::Streams<_>>::new(packets);
 
 	packets.send(Packet::oneshot(&Foo { a: 32, b: false })?).await?;
 

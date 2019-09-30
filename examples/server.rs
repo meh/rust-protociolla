@@ -16,11 +16,16 @@ pub struct Foo {
 
 async fn accept(stream: TcpStream, _addr: SocketAddr) -> Result<(), Box<dyn Error>> {
 	let packets = Framed::new(stream, protociolla::Codec);
-	let mut packets = Reframed::<protociolla::Packets<format::MessagePack>>::new(packets);
+	let packets = Reframed::<protociolla::Packets<format::MessagePack>>::new(packets);
+	let mut packets = Reframed::<protociolla::Streams<_>>::new(packets);
 
-	while let Some(Ok(packet)) = packets.next().await {
-		println!("{:?}", packet);
-		println!("{:?}", packet.cast::<Foo>());
+	while let Some(Ok(mut stream)) = packets.next().await {
+		tokio::spawn(async move {
+			while let Some(packet) = stream.next().await {
+				println!("{:?}", packet);
+				println!("{:?}", packet.cast::<Foo>());
+			}
+		});
 	}
 
 	Ok(())

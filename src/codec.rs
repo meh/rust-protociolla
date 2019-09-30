@@ -1,7 +1,8 @@
 use std::{io, usize, pin::Pin, marker::PhantomData};
-use tokio::{self, codec::{Decoder, Encoder}};
+use tokio::{self, codec::{Decoder, Encoder}, sync::mpsc::{channel, Sender, Receiver}, stream, future};
 use bytes::{BufMut, Bytes, BytesMut, ByteOrder, BigEndian};
 use futures::{stream::{Stream, StreamExt}, sink::{Sink, SinkExt}};
+use t1ha::T1haHashMap as HashMap;
 use crate::{Format, reframe::{self, Reframe}, Header, Cookie, Packet};
 
 /// `tokio::{Decoder, Encoder}` to transform a `Stream + Sink` of bytes to one
@@ -61,11 +62,12 @@ pub struct Packets<F = ()> {
 
 impl<F: Format + ::std::fmt::Debug> Reframe for Packets<F> {
 	type Input = (Header, Bytes);
-	type Output = Packet<F>;
+	type Stream = Packet<F>;
+	type Sink = Packet<F>;
 	type Error = io::Error;
 
-  fn stream(mut stream: Pin<Box<dyn Stream<Item = io::Result<Self::Input>> + Send>>) -> Pin<Box<dyn Stream<Item = io::Result<Self::Output>> + Send>> {
-		Box::pin(reframe::stream::<Self, _, _>(|mut tx| async move {
+  fn stream(mut stream: Pin<Box<dyn Stream<Item = io::Result<Self::Input>> + Send>>) -> Pin<Box<dyn Stream<Item = io::Result<Self::Stream>> + Send>> {
+		Box::pin(reframe::stream::<Self, _, _>(|mut out| async move {
 			macro_rules! next {
 				($body:expr) => (
 					if let Some(value) = stream.next().await {
@@ -73,7 +75,7 @@ impl<F: Format + ::std::fmt::Debug> Reframe for Packets<F> {
 							Ok(value) => value,
 
 							Err(error) => {
-								tx.send(Err(error)).await.unwrap();
+								out.send(Err(error)).await.unwrap();
 								return;
 							}
 						}
@@ -95,7 +97,7 @@ impl<F: Format + ::std::fmt::Debug> Reframe for Packets<F> {
 					payload.extend_from_slice(&packet.1);
 				}
 
-				tx.send(Ok(if let Some(cookie) = packet.0.cookie() {
+				out.send(Ok(if let Some(cookie) = packet.0.cookie() {
 					if packet.0.has_more_packets() {
 						Packet::<F>::new(Cookie::Stream(cookie), payload.freeze())
 					}
@@ -110,7 +112,7 @@ impl<F: Format + ::std::fmt::Debug> Reframe for Packets<F> {
 		}))
 	}
 
-  fn sink(mut sink: Pin<Box<dyn Sink<Self::Input, Error = Self::Error> + Send>>) -> Pin<Box<dyn Sink<Self::Output, Error = Self::Error> + Send>> {
+  fn sink(mut sink: Pin<Box<dyn Sink<Self::Input, Error = Self::Error> + Send>>) -> Pin<Box<dyn Sink<Self::Sink, Error = Self::Error> + Send>> {
 		Box::pin(reframe::sink::<Self, _, _>(|mut rx| async move {
 			while let Some(packet) = rx.next().await : Option<Packet<F>> {
 				let mut chunks = (0 ..= packet.bytes().len() / 0xfffe).peekable();
@@ -134,5 +136,76 @@ impl<F: Format + ::std::fmt::Debug> Reframe for Packets<F> {
 				}
 			}
 		}).sink_map_err(|err| io::Error::new(io::ErrorKind::Interrupted, err)))
+	}
+}
+
+/// Reframe packets into multiple streams (one per cookie).
+#[derive(Copy, Clone, Debug)]
+pub struct Streams<F = ()> {
+	_marker: PhantomData<F>,
+}
+
+impl<F: Format + ::std::fmt::Debug + Send> Reframe for Streams<F> {
+	type Input = Packet<F>;
+	type Stream = Pin<Box<dyn Stream<Item = Packet<F>> + Send>>;
+	type Sink = Packet<F>;
+	type Error = io::Error;
+
+  fn stream(mut stream: Pin<Box<dyn Stream<Item = io::Result<Self::Input>> + Send>>) -> Pin<Box<dyn Stream<Item = io::Result<Self::Stream>> + Send>> {
+		Box::pin(reframe::stream::<Self, _, _>(|mut out| async move {
+			macro_rules! next {
+				($body:expr) => (
+					if let Some(value) = stream.next().await {
+						match value {
+							Ok(value) => value,
+
+							Err(error) => {
+								out.send(Err(error)).await.unwrap();
+								return;
+							}
+						}
+					}
+					else {
+						return;
+					}
+				);
+			}
+
+			let mut channels = HashMap::<u16, Sender<Self::Input>>::default();
+
+			loop {
+				let packet = next!(stream);
+
+				match packet.cookie() {
+					Cookie::Oneshot => {
+						out.send(Ok(Box::pin(stream::once(future::ready(packet))))).await.unwrap();
+					}
+
+					Cookie::Stream(cookie) => {
+						if !channels.contains_key(&cookie) {
+							let (tx, rx) = channel(16);
+							out.send(Ok(Box::pin(rx))).await.unwrap();
+							channels.insert(cookie, tx);
+						}
+
+						channels.get_mut(&cookie).unwrap().send(packet).await.unwrap();
+					}
+
+					Cookie::Single(cookie) => {
+						if channels.contains_key(&cookie) {
+							channels.get_mut(&cookie).unwrap().send(packet).await.unwrap();
+							channels.remove(&cookie);
+						}
+						else {
+							out.send(Ok(Box::pin(stream::once(future::ready(packet))))).await.unwrap();
+						}
+					}
+				}
+			}
+		}))
+	}
+
+  fn sink(sink: Pin<Box<dyn Sink<Self::Input, Error = Self::Error> + Send>>) -> Pin<Box<dyn Sink<Self::Sink, Error = Self::Error> + Send>> {
+		sink
 	}
 }

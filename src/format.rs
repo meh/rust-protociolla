@@ -1,7 +1,7 @@
 use bytes::{BufMut, Bytes, BytesMut};
 use serde::{ser::Serialize, de::DeserializeOwned};
 
-pub trait Format: Send + 'static {
+pub trait Format: Send + Sync + 'static {
 	type SerializeError;
 	type DeserializeError;
 
