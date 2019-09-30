@@ -3,47 +3,47 @@ use futures::{stream::{Stream, StreamExt}, sink::Sink};
 use tokio::sync::mpsc::{self, channel, Receiver, Sender};
 
 pub trait Reframe {
-  type Input: Send + 'static;
-  type Output: Send + 'static;
-  type Error: Send + 'static;
+	type Input: Send + 'static;
+	type Output: Send + 'static;
+	type Error: Send + 'static;
 
-  fn stream(stream: Pin<Box<dyn Stream<Item = Result<Self::Input, Self::Error>> + Send>>)
-    -> Pin<Box<dyn Stream<Item = Result<Self::Output, Self::Error>> + Send>>;
+	fn stream(stream: Pin<Box<dyn Stream<Item = Result<Self::Input, Self::Error>> + Send>>)
+		-> Pin<Box<dyn Stream<Item = Result<Self::Output, Self::Error>> + Send>>;
 
-  fn sink(sink: Pin<Box<dyn Sink<Self::Input, Error = Self::Error> + Send>>)
-    -> Pin<Box<dyn Sink<Self::Output, Error = Self::Error> + Send>>;
+	fn sink(sink: Pin<Box<dyn Sink<Self::Input, Error = Self::Error> + Send>>)
+		-> Pin<Box<dyn Sink<Self::Output, Error = Self::Error> + Send>>;
 }
 
 pub struct Reframed<R: Reframe> {
-  stream: Pin<Box<dyn Stream<Item = Result<R::Output, R::Error>> + Send>>,
-  sink: Pin<Box<dyn Sink<R::Output, Error = R::Error> + Send>>,
+	stream: Pin<Box<dyn Stream<Item = Result<R::Output, R::Error>> + Send>>,
+	sink: Pin<Box<dyn Sink<R::Output, Error = R::Error> + Send>>,
 }
 
 impl<R: Reframe> Reframed<R> {
-  pub fn new(source: impl Stream<Item = Result<R::Input, R::Error>> + Sink<R::Input, Error = R::Error> + Send + 'static) -> Reframed<R> {
-    let (sink, stream) = source.split();
+	pub fn new(source: impl Stream<Item = Result<R::Input, R::Error>> + Sink<R::Input, Error = R::Error> + Send + 'static) -> Reframed<R> {
+		let (sink, stream) = source.split();
 
-    Reframed {
-      stream: R::stream(Box::pin(stream)),
-      sink: R::sink(Box::pin(sink))
-    }
-  }
+		Reframed {
+			stream: R::stream(Box::pin(stream)),
+			sink: R::sink(Box::pin(sink))
+		}
+	}
 
-  pub fn from_parts(stream: Pin<Box<dyn Stream<Item = Result<R::Output, R::Error>> + Send>>, sink: Pin<Box<dyn Sink<R::Output, Error = R::Error> + Send>>) -> Reframed<R> {
-    Reframed { stream, sink }
-  }
+	pub fn from_parts(stream: Pin<Box<dyn Stream<Item = Result<R::Output, R::Error>> + Send>>, sink: Pin<Box<dyn Sink<R::Output, Error = R::Error> + Send>>) -> Reframed<R> {
+		Reframed { stream, sink }
+	}
 }
 
 impl<R: Reframe> Stream for Reframed<R> {
-  type Item = Result<R::Output, R::Error>;
+	type Item = Result<R::Output, R::Error>;
 
-  fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-    Pin::new(&mut self.get_mut().stream).poll_next(cx)
-  }
+	fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+		Pin::new(&mut self.get_mut().stream).poll_next(cx)
+	}
 }
 
 impl<R: Reframe> Sink<R::Output> for Reframed<R> {
-  type Error = R::Error;
+	type Error = R::Error;
 
 	fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
 		Pin::new(&mut Pin::get_mut(self).sink).poll_ready(cx)

@@ -2,7 +2,6 @@ use std::{io, usize, pin::Pin, marker::PhantomData};
 use tokio::{self, codec::{Decoder, Encoder}};
 use bytes::{BufMut, Bytes, BytesMut, ByteOrder, BigEndian};
 use futures::{stream::{Stream, StreamExt}, sink::{Sink, SinkExt}};
-use serde::{ser::Serialize, de::DeserializeOwned};
 use crate::{Format, reframe::{self, Reframe}, Header, Cookie, Packet};
 
 /// `tokio::{Decoder, Encoder}` to transform a `Stream + Sink` of bytes to one

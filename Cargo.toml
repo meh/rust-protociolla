@@ -10,4 +10,4 @@ tokio = { git = "https://github.com/tokio-rs/tokio.git" }
 bytes = "0.4"
 
 serde = { version = "1", features = ["derive"] }
-msgpack = { package = "rmp-serde", version = "0.13" }
+msgpack = { package = "rmp-serde", version = "0.13", optional = true }

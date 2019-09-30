@@ -1,4 +1,4 @@
-use bytes::{BufMut, Bytes, BytesMut, ByteOrder, BigEndian};
+use bytes::{BufMut, Bytes, BytesMut};
 use serde::{ser::Serialize, de::DeserializeOwned};
 
 pub trait Format: Send + 'static {
@@ -22,9 +22,11 @@ impl Format for () {
 	}
 }
 
+#[cfg(feature = "msgpack")]
 #[derive(Copy, Clone, Debug)]
 pub struct MessagePack;
 
+#[cfg(feature = "msgpack")]
 impl Format for MessagePack {
 	type SerializeError = msgpack::encode::Error;
 	type DeserializeError = msgpack::decode::Error;
@@ -37,5 +39,3 @@ impl Format for MessagePack {
 		msgpack::decode::from_slice(buffer)
 	}
 }
-
-

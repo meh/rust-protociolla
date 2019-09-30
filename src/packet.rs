@@ -1,7 +1,5 @@
-use std::{io, usize, pin::Pin, marker::PhantomData};
-use tokio::{self, codec::{Decoder, Encoder}};
-use bytes::{BufMut, Bytes, BytesMut, ByteOrder, BigEndian};
-use futures::{stream::{Stream, StreamExt}, sink::{Sink, SinkExt}};
+use std::marker::PhantomData;
+use bytes::{Bytes, BytesMut};
 use serde::{ser::Serialize, de::DeserializeOwned};
 use crate::Format;
 
@@ -14,8 +12,8 @@ pub enum Cookie {
 
 #[derive(Copy, Clone, Debug)]
 pub struct Header {
-  pub(crate) cookie: u16,
-  pub(crate) length: u16,
+	pub(crate) cookie: u16,
+	pub(crate) length: u16,
 }
 
 impl Header {
@@ -49,24 +47,24 @@ impl Header {
 		}
 	}
 
-  pub fn cookie(&self) -> Option<u16> {
+	pub fn cookie(&self) -> Option<u16> {
 		match self.cookie & !0x8000 {
 			0 => None,
 			v => Some(v)
 		}
-  }
+	}
 
-  pub fn length(&self) -> usize {
-    0xfffe.min(self.length).into()
-  }
+	pub fn length(&self) -> usize {
+		0xfffe.min(self.length).into()
+	}
 
-  pub fn has_more_packets(&self) -> bool {
-    (self.cookie & 0x8000) != 0
-  }
+	pub fn has_more_packets(&self) -> bool {
+		(self.cookie & 0x8000) != 0
+	}
 
-  pub fn has_more_payload(&self) -> bool {
-    self.length == 0xffff
-  }
+	pub fn has_more_payload(&self) -> bool {
+		self.length == 0xffff
+	}
 }
 #[derive(Clone, Debug)]
 pub struct Packet<F: Format = ()> {
