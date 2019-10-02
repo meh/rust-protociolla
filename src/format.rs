@@ -1,11 +1,15 @@
 use bytes::{BufMut, Bytes, BytesMut};
 use serde::{ser::Serialize, de::DeserializeOwned};
 
+/// Trait that conflates serialization and deserialization.
 pub trait Format: Send + Sync + 'static {
 	type SerializeError;
 	type DeserializeError;
 
+	/// Serialize a value to a buffer.
 	fn serialize<T: Serialize>(value: &T, buffer: &mut BytesMut) -> Result<(), Self::SerializeError>;
+
+	/// Deserialize a value from a buffer.
 	fn deserialize<T: DeserializeOwned>(buffer: &Bytes) -> Result<T, Self::DeserializeError>;
 }
 
@@ -22,6 +26,7 @@ impl Format for () {
 	}
 }
 
+/// MessagePack integration.
 #[cfg(feature = "msgpack")]
 #[derive(Copy, Clone, Debug)]
 pub struct MessagePack;
