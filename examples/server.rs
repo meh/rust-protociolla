@@ -1,9 +1,9 @@
 #![feature(type_ascription, async_closure)]
 
 use std::{error::Error, net::SocketAddr, env};
-use tokio::{self, codec::Framed, net::{TcpListener, TcpStream}};
+use tokio::{self, net::{TcpListener, TcpStream}};
 use futures::{stream::StreamExt};
-use protociolla::{self, format, Reframed};
+use protociolla::{self, format};
 use serde::{Serialize, Deserialize};
 
 /// Normally this type would be shared between server and client binaries, but
